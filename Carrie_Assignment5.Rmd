@@ -1,0 +1,135 @@
+---
+title: "Carrie_Assignment5"
+output: html_notebook
+---
+
+#1.Preliminaries
+```{r}
+library(tidyverse)
+library (ggthemes)
+library(rstatix)
+library(ggpubr)
+assignment5 = read_csv("assignment5_data.csv")
+```
+
+#2. Subject-level means
+```{r}
+subject_accuracy=
+assignment5 %>%
+group_by(subject, prime_condition) %>%
+summarize(mean_acc=mean(accuracy))
+
+subject_rt=
+assignment5 %>%
+group_by(subject, prime_condition) %>%
+summarize(mean_rt=mean(response_RT))
+```
+#3. Format of the data
+#Both subject_accuracy and subject_rt are in long format
+
+#4. Long to Wide conversion
+```{r}
+subject_accuracy_wide=
+subject_accuracy %>%
+pivot_wider(names_from=prime_condition, values_from=mean_acc)
+```
+#5. Wide to Long Conversion
+```{r}
+subject_accuracy_long=
+  subject_accuracy_wide %>%
+  pivot_longer(names_to="prime_condition", cols=both:unrelated) %>%
+  rename(mean_acc=value)
+```
+#6. Interpretation
+#subject_accuracy contains the same infomation as that in subject_accuracy_long
+
+#7. t-test in R
+```{r}
+t.test(subject_accuracy_wide$phonological, subject_accuracy_wide$semantic, paired=TRUE) 
+```
+#8 t-test interpretation
+#p-value of the t-test is smaller than 0.05, meaning we have sufficient evidence to reject the null hypothesis, so the mean accuracy in phonological condition is significantly higher than that in semantic condition.
+
+#9. t-test manual
+```{r}
+xbar_diff=mean(subject_accuracy_wide$phonological-subject_accuracy_wide$semantic)
+sd_diff=sd(subject_accuracy_wide$phonological-subject_accuracy_wide$semantic)
+n=nrow(subject_accuracy_wide)
+root_n=sqrt(n)
+t=xbar_diff/(sd_diff/root_n)
+deg=n-1
+p_value=2*(1-pt(t,deg))
+```
+
+#10. t-test outliers
+```{r}
+#1)
+subject_accuracy_wide=subject_accuracy_wide %>%
+  mutate(diff=phonological-semantic)
+subject_accuracy_wide=subject_accuracy_wide %>% ungroup()
+hist(subject_accuracy_wide$diff)
+
+#2)
+outliers=subject_accuracy_wide %>% identify_outliers(diff)
+#there is one outlier
+
+#3)
+outlier_subs=outliers %>% pull(subject)
+newdf=subject_accuracy_wide %>% filter(!subject %in% outlier_subs)
+```
+#11. t-test normality
+```{r}
+#1)
+ggqqplot(subject_accuracy_wide, "diff")
+#2)
+subject_accuracy_wide%>% shapiro_test(diff)
+#3)
+#Yes, the normality assumption is satisfied given that the p-value of the Shapiro-Wilk test is larger than 0.05.
+```
+#12. Overall pattern interpretation
+```{r}
+#The test showed us that there was only one outlier and the data satisfied normal distribution, so we can conclude from the result that the response accuracy in the phonological condition is significantly higher than that in the semantic condition(xbar_diff=phonological-semantic=0.131, p-value < 0.05).
+```
+#13. Plot RTs
+```{r}
+mean_rt=
+  assignment5%>%
+  group_by(prime_condition) %>%
+  summarize(mean_rt=mean(response_RT))
+mean_rt%>%
+  ggplot(aes(x=prime_condition, y=mean_rt)) + geom_col() +labs(x="prime condition", y="mean RT", title="Barplot of Mean RT")
+
+# The mean RT in four conditions are very close. The semantic condition produced the slowest response while the both condition produced the fastest response.
+```
+#Extra credit
+#14. t-test for RTs
+```{r}
+#1)
+subject_rt_wide=
+subject_rt %>%
+pivot_wider(names_from=prime_condition, values_from=mean_rt)
+
+#2)
+subject_rt_wide=subject_rt_wide %>%
+mutate(diff2=semantic-both) 
+subject_rt_wide=subject_rt_wide %>% ungroup()
+outliers2=subject_rt_wide %>% identify_outliers(diff2)
+#there are no outliers
+
+#3)
+ggqqplot(subject_rt_wide, "diff2")
+subject_rt_wide%>% shapiro_test(diff2)
+#Yes, the normality assumption is satisfied given that the p-value of the Shapiro-Wilk test is larger than 0.05.
+
+#4)
+t.test(subject_rt_wide$semantic, subject_rt_wide$both, paired=TRUE)
+#the p-value of the t-test is 0.264, larger than 0.05, meaning there's insufficient evidence to reject the null hypothesis and that there is no significant difference between the mean RT in semantic condition and that in both condition. 
+```
+#15. Regression line plot for RTs
+```{r}
+assignment5 %>%
+ggplot(aes(x=distance, y=response_RT, fill=prime_condition))+geom_smooth(method = "lm")+theme_few()+labs(x="distance", y="response RT", title="Regression line plot for RTs")
+
+#According to the plot, there is a positive linear relationship between distance and response RT. As distance increases, response RT also increases in each prime condition. I don't think it significantly differs for each condition because distance and RT follow the same upward pattern in all conditions. Also, there's a lot of overlap between the regression lines of 4 conditions. I think distance measures the level of difference or similarity between the meaning of the prime word and the target word. Larger distance means the meaning of the prime word differs more greatly from that of the target word.
+```
+
